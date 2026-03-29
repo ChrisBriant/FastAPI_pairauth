@@ -54,7 +54,7 @@ async def register_device(reg_input : DeviceRegistrationInput):
     #1. Lookup challenge code 
     async with SessionLocal() as session:
         try:
-            user = await Token.validate_challenge(session,reg_input.challenge_code)
+            token, user = await Token.validate_challenge(session,reg_input.challenge_code)
             print("USER WITH CHALLENGE CODE",user)
         except TokenUsed as tu:
             print("TOKEN USED", tu)
@@ -77,13 +77,18 @@ async def register_device(reg_input : DeviceRegistrationInput):
                 device = await Device.register_device(session,user.id,reg_input.public_key,reg_input.device_name)
                 if not device:
                     raise HTTPException(status_code=422,detail="Device registration failed")
+                #4. Mark token as used
+                try:
+                    await token.mark_used(session)
+                except Exception as e:
+                    raise HTTPException(status_code=422,detail="Unable to mark token as used")
             except DeviceAlreadyRegistered as dar:
                 print("DEVICE IS ALREADY REGISTERED", dar)
                 raise HTTPException(status_code=401,detail="Device is already registered")
             except Exception as e:
                 print("An unknown error occurred")
                 raise HTTPException(status_code=400,detail="An unknown error occurred")
-            #4. Mark token as used
+            
 
     return "Device Registered" 
 

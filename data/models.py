@@ -226,7 +226,18 @@ class Token(Base):
             raise TokenExpired("Challenge token expired")
 
         # Return the associated user
-        return token_obj.user
+        return token_obj, token_obj.user
+
+    async def mark_used(self, db: AsyncSession):
+        """
+        Mark this token as used so it cannot be reused.
+        """
+        self.used = True
+        self.used_at = datetime.now(tz=timezone.utc)  # optional: record when it was used
+        db.add(self)
+        await db.commit()
+        await db.refresh(self)
+        return self
 
     # @classmethod
     # async def get_valid_token(
