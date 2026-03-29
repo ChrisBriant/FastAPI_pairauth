@@ -11,6 +11,7 @@ import json
 import os
 import base64
 from services.auth_exceptions import TokenExpired, TokenNotFound, TokenUsed
+from services.auth import verify_signature
 
 router = APIRouter()
 
@@ -64,13 +65,17 @@ async def register_device(reg_input : DeviceRegistrationInput):
         except TokenNotFound as tnf:
             print("TOKEN NOT FOUND", tnf)
             raise HTTPException(status_code=401,detail="Invalid token sent")
-
-    return "Hello Mickey" 
-        
-               
+  
     #2. Verify signature
+    if user:
+        signature_verified = verify_signature(reg_input.public_key,reg_input.signature,reg_input.challenge_code)
+        if not signature_verified:
+            raise HTTPException(status_code=401,detail="Signature is not valid")
+
     #3. Check no device is already registered
     #4. Register device - Add device record to DB
+
+    return "Hello Mickey" 
 
 
 
