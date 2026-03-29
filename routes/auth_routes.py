@@ -4,11 +4,13 @@ from data.db import SessionLocal
 from pathlib import Path
 from data.models import User, Token
 from data.schemas import (
-    UserInputSchema
+    UserInputSchema,
+    DeviceRegistrationInput,
 )
 import json
 import os
 import base64
+from services.auth_exceptions import TokenExpired, TokenNotFound, TokenUsed
 
 router = APIRouter()
 
@@ -17,7 +19,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 @router.post("/signup", response_model =str, status_code=status.HTTP_201_CREATED)
-async def get_providers(user_input : UserInputSchema):
+async def signup_user(user_input : UserInputSchema):
     """
         Sign up a User
         1. Create user — hash password and insert into users table.
@@ -34,15 +36,42 @@ async def get_providers(user_input : UserInputSchema):
         print("CREATED USER", user)
         if not user:
             raise HTTPException(status_code=400,detail="User not created")
-        challenge_code = user.generate_registration_challenge()
-        print("CHALLENGE CODE", challenge_code)
-        if not challenge_code:
-            raise HTTPException(status_code=400,detail="Challenge code not created")
+
         #Insert challenge code into database
         try:
-            await Token.create_challenge(session,user.id)
+            challenge_code = await Token.create_challenge(session,user.id,token_type="registration",expires_minutes=180)
+            if not challenge_code:
+                raise HTTPException(status_code=400,detail="Challenge code not created")
+            return challenge_code.token
         except Exception as e:
             print("VALUE ERROR", e)
             raise HTTPException(status_code=400,detail="Unable to set the challenge token")            
 
-    return challenge_code
+
+@router.post("/registerdevice", response_model =str, status_code=status.HTTP_201_CREATED)
+async def register_device(reg_input : DeviceRegistrationInput):
+    #1. Lookup challenge code 
+    async with SessionLocal() as session:
+        try:
+            user = await Token.validate_challenge(session,reg_input.challenge_code)
+            print("USER WITH CHALLENGE CODE",user)
+        except TokenUsed as tu:
+            print("TOKEN USED", tu)
+            raise HTTPException(status_code=401,detail="Token is already used")
+        except TokenExpired as te:
+            print("TOKEN EXPIRED", te)
+            raise HTTPException(status_code=401,detail="The token has expired")
+        except TokenNotFound as tnf:
+            print("TOKEN NOT FOUND", tnf)
+            raise HTTPException(status_code=401,detail="Invalid token sent")
+
+    return "Hello Mickey" 
+        
+               
+    #2. Verify signature
+    #3. Check no device is already registered
+    #4. Register device - Add device record to DB
+
+
+
+    

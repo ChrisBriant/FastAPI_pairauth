@@ -25,3 +25,9 @@ class UserInputSchema(BaseModel):
             raise ValueError("Password must contain a special character")
 
         return v
+    
+class DeviceRegistrationInput(BaseModel):
+    challenge_code : str
+    public_key : str
+    signature : str
+    device_name : str | None

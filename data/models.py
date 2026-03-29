@@ -23,6 +23,7 @@ import asyncio
 import bcrypt
 from datetime import datetime, timedelta, timezone
 import secrets
+from services.auth_exceptions import TokenExpired, TokenNotFound, TokenUsed
 
 
 # class User(Base):
@@ -103,10 +104,10 @@ class User(Base):
         inserted_user = result.scalar_one()
         return inserted_user
     
-    @staticmethod
-    def generate_registration_challenge():
-        # Random token the device will use for registration
-        return secrets.token_urlsafe(32)
+    # @staticmethod
+    # def generate_registration_challenge():
+    #     # Random token the device will use for registration
+    #     return secrets.token_urlsafe(32)
 
 class Device(Base):
     __tablename__ = "devices"
@@ -161,29 +162,55 @@ class Token(Base):
         await db.refresh(token)
 
         return token
-
+    
     @classmethod
-    async def get_valid_token(
-        cls,
-        db: AsyncSession,
-        token_value: str,
-        token_type: str
-    ):
+    async def validate_challenge(cls, db: AsyncSession, challenge: str):
+        """
+        Validate the challenge token.
+        Returns the User if the challenge exists, has not expired, and is unused.
+        Raises ValueError if invalid.
+        """
         result = await db.execute(
-            select(cls).where(
-                cls.token == token_value,
-                cls.token_type == token_type,
-                cls.used == False,
-                cls.expires_at > datetime.now(timezone.utc)
-            )
+            select(cls)
+            .options(selectinload(cls.user))   # preload the User relationship
+            .where(cls.token == challenge)
         )
+        token_obj = result.scalar_one_or_none()
 
-        token = result.scalar_one_or_none()
+        if token_obj is None:
+            raise TokenNotFound("Invalid challenge token")
 
-        if not token:
-            raise ValueError("Invalid or expired token")
+        now = datetime.now(tz=token_obj.expires_at.tzinfo)
+        if token_obj.used:
+            raise TokenUsed("Challenge token already used")
+        if token_obj.expires_at < now:
+            raise TokenExpired("Challenge token expired")
 
-        return token
+        # Return the associated user
+        return token_obj.user
+
+    # @classmethod
+    # async def get_valid_token(
+    #     cls,
+    #     db: AsyncSession,
+    #     token_value: str,
+    #     token_type: str
+    # ):
+    #     result = await db.execute(
+    #         select(cls).where(
+    #             cls.token == token_value,
+    #             cls.token_type == token_type,
+    #             cls.used == False,
+    #             cls.expires_at > datetime.now(timezone.utc)
+    #         )
+    #     )
+
+    #     token = result.scalar_one_or_none()
+
+    #     if not token:
+    #         raise ValueError("Invalid or expired token")
+
+    #     return token
 
 
 if __name__ == "__main__":
