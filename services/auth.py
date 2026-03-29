@@ -23,6 +23,7 @@ def verify_signature(public_key_b64: str, signature_b64: str, message: bytes) ->
     except (ValueError, InvalidSignature):
         return False
 
+#Not necessary
 def decode_public_key(public_key_b64):
     """
         Decodes the base64 public key into the public key string
