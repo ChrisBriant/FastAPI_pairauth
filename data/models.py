@@ -23,7 +23,8 @@ import asyncio
 import bcrypt
 from datetime import datetime, timedelta, timezone
 import secrets
-from services.auth_exceptions import TokenExpired, TokenNotFound, TokenUsed
+from services.auth_exceptions import TokenExpired, TokenNotFound, TokenUsed, DeviceAlreadyRegistered
+from services.auth import decode_public_key
 
 
 # class User(Base):
@@ -121,6 +122,44 @@ class Device(Base):
     revoked = Column(Boolean, default=False)
 
     user = relationship("User", back_populates="devices")
+
+    @classmethod
+    async def is_registered(cls, db: AsyncSession, user_id: int, public_key: str) -> bool:
+        """
+        Check if a device with this public key is already registered for the user.
+        """
+        result = await db.execute(
+            select(cls).where(cls.user_id == user_id, cls.public_key == public_key)
+        )
+        device = result.scalar_one_or_none()
+        print("DO I GET HERE", device)
+        return device is not None
+
+    @classmethod
+    async def register_device(cls, db: AsyncSession, user_id: int, public_key: str, device_name: str | None = None):
+        """
+        Register a new device for the user.
+        Raises ValueError if device is already registered.
+        """
+        #decoded_public_key = decode_public_key(public_key)
+
+        if await cls.is_registered(db, user_id, public_key):
+            raise DeviceAlreadyRegistered("Device already registered")
+        
+        
+
+        device = cls(
+            user_id=user_id,
+            public_key=public_key,
+            device_name=device_name,
+            created_at=datetime.now(tz=datetime.utcnow().astimezone().tzinfo),
+            last_used=None,
+            revoked=False
+        )
+        db.add(device)
+        await db.commit()
+        await db.refresh(device)  # load the generated id
+        return device
 
 
 class Token(Base):

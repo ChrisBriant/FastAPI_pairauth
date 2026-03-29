@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Request, Depends, Response, Query,
 from typing import List
 from data.db import SessionLocal
 from pathlib import Path
-from data.models import User, Token
+from data.models import User, Token, Device
 from data.schemas import (
     UserInputSchema,
     DeviceRegistrationInput,
@@ -10,7 +10,7 @@ from data.schemas import (
 import json
 import os
 import base64
-from services.auth_exceptions import TokenExpired, TokenNotFound, TokenUsed
+from services.auth_exceptions import TokenExpired, TokenNotFound, TokenUsed, DeviceAlreadyRegistered
 from services.auth import verify_signature
 
 router = APIRouter()
@@ -66,16 +66,26 @@ async def register_device(reg_input : DeviceRegistrationInput):
             print("TOKEN NOT FOUND", tnf)
             raise HTTPException(status_code=401,detail="Invalid token sent")
   
-    #2. Verify signature
-    if user:
-        signature_verified = verify_signature(reg_input.public_key,reg_input.signature,reg_input.challenge_code)
-        if not signature_verified:
-            raise HTTPException(status_code=401,detail="Signature is not valid")
+        #2. Verify signature
+        if user:
+            signature_verified = verify_signature(reg_input.public_key,reg_input.signature,reg_input.challenge_code)
+            if not signature_verified:
+                raise HTTPException(status_code=401,detail="Signature is not valid")
 
-    #3. Check no device is already registered
-    #4. Register device - Add device record to DB
+            #3. Check no device is already registered and Register device - Add device record to DB
+            try:
+                device = await Device.register_device(session,user.id,reg_input.public_key,reg_input.device_name)
+                if not device:
+                    raise HTTPException(status_code=422,detail="Device registration failed")
+            except DeviceAlreadyRegistered as dar:
+                print("DEVICE IS ALREADY REGISTERED", dar)
+                raise HTTPException(status_code=401,detail="Device is already registered")
+            except Exception as e:
+                print("An unknown error occurred")
+                raise HTTPException(status_code=400,detail="An unknown error occurred")
+            #4. Mark token as used
 
-    return "Hello Mickey" 
+    return "Device Registered" 
 
 
 

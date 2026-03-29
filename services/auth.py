@@ -22,7 +22,13 @@ def verify_signature(public_key_b64: str, signature_b64: str, message: bytes) ->
         return True
     except (ValueError, InvalidSignature):
         return False
-    
+
+def decode_public_key(public_key_b64):
+    """
+        Decodes the base64 public key into the public key string
+    """
+    public_key_bytes = base64.b64decode(public_key_b64)
+    return Ed25519PublicKey.from_public_bytes(public_key_bytes)
 
 if __name__ == "__main__":
     verified_signature = verify_signature("uOFr6WEnUdVvawwikdRu91w5WisKr5p9qb2DqsukFFE=","8528OE63ASao7PlxvpuAczqrT3zb5fGHwGdXIYfXARtZWCDJllxnmtZcMfDUNpQU5tGZy2Xk8D9WCM+EAyO6CQ==", "-wIupHJE3mBou5XMhauYHgsI4LSc5R7enJM_6kj4MpE")

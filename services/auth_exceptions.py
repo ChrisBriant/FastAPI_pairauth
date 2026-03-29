@@ -13,3 +13,7 @@ class TokenUsed(TokenError):
 class TokenExpired(TokenError):
     """Token has expired."""
     pass
+
+class DeviceAlreadyRegistered(Exception):
+    """Device is already registered."""
+    pass
