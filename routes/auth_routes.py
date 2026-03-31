@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Request, Depends, Response, Query, status
+from fastapi.responses import RedirectResponse
 from typing import List
 from data.db import SessionLocal
 from pathlib import Path
@@ -12,6 +13,7 @@ import os
 import base64
 from services.auth_exceptions import TokenExpired, TokenNotFound, TokenUsed, DeviceAlreadyRegistered
 from services.auth import verify_signature
+from services.token import ACCESS_TOKEN_LIFETIME, REFRESH_TOKEN_LIFETIME,obtain_jwt_pair
 
 router = APIRouter()
 
@@ -89,8 +91,35 @@ async def register_device(reg_input : DeviceRegistrationInput):
                 print("An unknown error occurred")
                 raise HTTPException(status_code=400,detail="An unknown error occurred")
             
+            #Issue a jwt and set the cookies
+            #Issue a JWT
+            jwt_token_pair = obtain_jwt_pair(str(user.id),user.user_name, user.terms_accepted) 
+            response = RedirectResponse(
+                url=os.environ.get("CLIENT_REDIRECT"),
+                status_code=302
+            )
+            # Access token cookie
+            response.set_cookie(
+                key="access_token",
+                value=jwt_token_pair["access"],
+                httponly=True,
+                secure=True,          # HTTPS only
+                samesite="none",
+                max_age=ACCESS_TOKEN_LIFETIME,
+            )
 
-    return "Device Registered" 
+            # Refresh token cookie
+            response.set_cookie(
+                key="refresh_token",
+                value=jwt_token_pair["refresh"],
+                httponly=True,
+                secure=True,
+                samesite="none",
+                max_age=REFRESH_TOKEN_LIFETIME, 
+            )
+
+
+    return response
 
 
 

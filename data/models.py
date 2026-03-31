@@ -71,6 +71,7 @@ class User(Base):
     user_name = Column(String, nullable=False, unique=True)
     password_hash = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False)
+    terms_accepted = Column(Boolean, nullable=False, default=False)
 
     devices = relationship("Device", back_populates="user")
     tokens = relationship("Token", back_populates="user")
