@@ -14,11 +14,15 @@ import base64
 from services.auth_exceptions import TokenExpired, TokenNotFound, TokenUsed, DeviceAlreadyRegistered
 from services.auth import verify_signature
 from services.token import ACCESS_TOKEN_LIFETIME, REFRESH_TOKEN_LIFETIME,obtain_jwt_pair
+from services.utils import check_active_device_exists
+
 
 router = APIRouter()
 
 # Go to project root (adjust parents[n] if needed)
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+CHALLENGE_TOKEN_LIFETIME = 200
 
 
 @router.post("/signup", response_model =str, status_code=status.HTTP_201_CREATED)
@@ -68,6 +72,9 @@ async def register_device(reg_input : DeviceRegistrationInput):
             print("TOKEN NOT FOUND", tnf)
             raise HTTPException(status_code=401,detail="Invalid token sent")
   
+        #FOR TESTING PURPOSES
+        #user = await User.get_by_id(session,8)
+
         #2. Verify signature
         if user:
             signature_verified = verify_signature(reg_input.public_key,reg_input.signature,reg_input.challenge_code)
@@ -91,36 +98,78 @@ async def register_device(reg_input : DeviceRegistrationInput):
                 print("An unknown error occurred")
                 raise HTTPException(status_code=400,detail="An unknown error occurred")
             
+            #DON@T DO BELOW HERE JUST RETURN SUCCESS
             #Issue a jwt and set the cookies
             #Issue a JWT
-            jwt_token_pair = obtain_jwt_pair(str(user.id),user.user_name, user.terms_accepted) 
-            response = RedirectResponse(
-                url=os.environ.get("CLIENT_REDIRECT"),
-                status_code=302
-            )
-            # Access token cookie
-            response.set_cookie(
-                key="access_token",
-                value=jwt_token_pair["access"],
-                httponly=True,
-                secure=True,          # HTTPS only
-                samesite="none",
-                max_age=ACCESS_TOKEN_LIFETIME,
-            )
+            
+            # jwt_token_pair = obtain_jwt_pair(str(user.id),user.user_name, user.terms_accepted) 
+            # response = RedirectResponse(
+            #     url=os.environ.get("CLIENT_REDIRECT"),
+            #     status_code=302
+            # )
+            # # Access token cookie
+            # response.set_cookie(
+            #     key="access_token",
+            #     value=jwt_token_pair["access"],
+            #     httponly=True,
+            #     secure=True,          # HTTPS only
+            #     samesite="none",
+            #     max_age=ACCESS_TOKEN_LIFETIME,
+            # )
 
-            # Refresh token cookie
-            response.set_cookie(
-                key="refresh_token",
-                value=jwt_token_pair["refresh"],
-                httponly=True,
-                secure=True,
-                samesite="none",
-                max_age=REFRESH_TOKEN_LIFETIME, 
-            )
-
-
-    return response
-
+            # # Refresh token cookie
+            # response.set_cookie(
+            #     key="refresh_token",
+            #     value=jwt_token_pair["refresh"],
+            #     httponly=True,
+            #     secure=True,
+            #     samesite="none",
+            #     max_age=REFRESH_TOKEN_LIFETIME, 
+            # )
+            return "success"
 
 
+
+@router.post("/signin", response_model =str, status_code=status.HTTP_200_OK)
+async def signin_user(response: Response, user_input : UserInputSchema):
+    """
+        Endpoint to handle user sign in.
+        Takes the user name and password, checks device is registered, validates user password, sets challenge cookie
+    """
+    async with SessionLocal() as session:
+        #1.Check user is registered
+        user = await User.get_by_user_name(session,user_input.user_name)
+        if not user:
+            raise HTTPException(status_code=404,detail="User not found")
+        #Check the devices is more than one which means they have registered
+        print("USER FOUND", list(user.devices))
+        device_list = list(user.devices)
+        if not (len(device_list) > 0 and check_active_device_exists(device_list)):
+            raise HTTPException(status_code=404,detail="Could not find active device") 
+        #2. Verify the user password
+        print(type(user))                   # should be <class 'User'>
+        print(user.password_hash)           # should be the actual hash string
+        password_valid = user.verify_password(user_input.password)
+        if not password_valid:
+            raise HTTPException(status_code=401,detail="Password authentication failed")
+        print("PASSWORD IS VALID", password_valid)
+        #3. Create a challenge for device authentication
+        challenge = await Token.create_challenge(session,user.id,"signin",200)
+        #Create challenge cookie and redirect to challenge page on browser app
+        # response = RedirectResponse(
+        #     url=f"{os.environ.get("CLIENT_REDIRECT")}/challenge?type=signIn",
+        #     status_code=302
+        # )
+        # Access token cookie
+        response.set_cookie(
+            key="challenge_token",
+            value=challenge.token,
+            httponly=True,
+            secure=True,          # HTTPS only
+            samesite="none",
+            max_age=CHALLENGE_TOKEN_LIFETIME,
+        )
+        
+
+        return challenge.token
     

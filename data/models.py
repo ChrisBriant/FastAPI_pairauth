@@ -105,11 +105,46 @@ class User(Base):
         )
         inserted_user = result.scalar_one()
         return inserted_user
+
+    def verify_password(self, password: str) -> bool:
+        """
+        Check if the provided password matches the stored hash.
+        """
+        if not self.password_hash:
+            return False
+        return bcrypt.checkpw(password.encode("utf-8"), self.password_hash.encode("utf-8"))
+
+    @classmethod
+    async def get_by_id(cls, db: AsyncSession, user_id: int):
+        """
+        Retrieve a user by ID with devices and tokens loaded.
+        Returns the User object or None if not found.
+        """
+        result = await db.execute(
+            select(cls)
+            .options(
+                selectinload(cls.devices),
+                selectinload(cls.tokens)
+            )
+            .where(cls.id == user_id)
+        )
+        return result.scalar_one_or_none()
     
-    # @staticmethod
-    # def generate_registration_challenge():
-    #     # Random token the device will use for registration
-    #     return secrets.token_urlsafe(32)
+    @classmethod
+    async def get_by_user_name(cls, db: AsyncSession, user_name: str):
+        """
+        Retrieve a user by username with devices and tokens loaded.
+        Returns the User object or None if not found.
+        """
+        result = await db.execute(
+            select(cls)
+            .options(
+                selectinload(cls.devices),
+                selectinload(cls.tokens)
+            )
+            .where(cls.user_name == user_name)
+        )
+        return result.scalar_one_or_none()
 
 class Device(Base):
     __tablename__ = "devices"

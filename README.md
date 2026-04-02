@@ -89,6 +89,8 @@ uvicorn main:app --reload
 
 ### Auth Flow
 
+## Register
+
 1. React user registers account
 2. Backend - Accept user name password and store in DB
 3. Backend generates challenge code
@@ -97,3 +99,12 @@ uvicorn main:app --reload
 6. Mobile Device - Generate public and private key pair, store securely
 7. Send public key + challenge code to backend
 8. Backend - Looks up challenge code, if successful registered device with user
+
+## Sign in
+
+1. react displays challenge QR code for signin flow 
+2. Mobile device scans code, transmits challenge to device authentication endpoint 
+3. Device is confirmed and token is marked with verified status 
+4. User presses continue which this time redirects to page on app which calls session endpoint 
+5. Session endpoint checks challenge token has been authenticated with device, issues JWT and sets access and refresh cookies
+
