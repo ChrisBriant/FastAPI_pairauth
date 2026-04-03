@@ -197,6 +197,18 @@ class Device(Base):
         await db.refresh(device)  # load the generated id
         return device
 
+    @classmethod
+    async def get_by_id(cls, db: AsyncSession, device_id: int):
+        """
+        Retrieve a device by ID
+        Returns the Device object or None if not found.
+        """
+        result = await db.execute(
+            select(cls)
+            .where(cls.id == device_id)
+        )
+        return result.scalar_one_or_none()
+    
 
 class Token(Base):
     __tablename__ = "tokens"
@@ -210,6 +222,8 @@ class Token(Base):
     expires_at = Column(DateTime(timezone=True), nullable=False)
     used = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), nullable=False)
+    #Marks the token as being verified if it has been signed in
+    verified = Column(Boolean, default=False)
 
     user = relationship("User", back_populates="tokens")
 
@@ -270,6 +284,16 @@ class Token(Base):
         """
         self.used = True
         self.used_at = datetime.now(tz=timezone.utc)  # optional: record when it was used
+        db.add(self)
+        await db.commit()
+        await db.refresh(self)
+        return self
+    
+    async def mark_verified(self, db: AsyncSession):
+        """
+        Mark this token as used so it cannot be reused.
+        """
+        self.verified = True
         db.add(self)
         await db.commit()
         await db.refresh(self)

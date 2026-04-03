@@ -7,6 +7,7 @@ from data.models import User, Token, Device
 from data.schemas import (
     UserInputSchema,
     DeviceRegistrationInput,
+    DeviceAuthenticationInputSchema,
 )
 import json
 import os
@@ -55,7 +56,7 @@ async def signup_user(user_input : UserInputSchema):
             raise HTTPException(status_code=400,detail="Unable to set the challenge token")            
 
 
-@router.post("/registerdevice", response_model =str, status_code=status.HTTP_201_CREATED)
+@router.post("/registerdevice", response_model =int, status_code=status.HTTP_201_CREATED)
 async def register_device(reg_input : DeviceRegistrationInput):
     #1. Lookup challenge code 
     async with SessionLocal() as session:
@@ -126,7 +127,7 @@ async def register_device(reg_input : DeviceRegistrationInput):
             #     samesite="none",
             #     max_age=REFRESH_TOKEN_LIFETIME, 
             # )
-            return "success"
+            return device.id
 
 
 
@@ -173,3 +174,35 @@ async def signin_user(response: Response, user_input : UserInputSchema):
 
         return challenge.token
     
+@router.post("/deviceauth", response_model =str, status_code=status.HTTP_200_OK)
+async def authenticate_device(device_input : DeviceAuthenticationInputSchema):
+    """
+        Endpoint to authenticate a device
+    """
+    async with SessionLocal() as session:
+        #1.Get the device
+        device = await Device.get_by_id(session,device_input.device_id)
+        if not device:
+            raise HTTPException(status_code=404,detail="Device not registered")
+        print("DEVICE FOUND", device)
+        #2.Verify the signature against the device public key
+        signature_verified = verify_signature(device.public_key,device_input.signature,device_input.challenge_code)
+        if not signature_verified:
+            raise HTTPException(status_code=404,detail="Signature not valid")
+        print("DEVICE SIGNATURE VERIFIED", signature_verified)
+        #3. Get the token and user
+        try:
+            token, user = await Token.validate_challenge(session,device_input.challenge_code)
+            print("TOKEN",token)
+            await token.mark_verified(session)
+        except TokenUsed as tu:
+            print("TOKEN USED", tu)
+            raise HTTPException(status_code=401,detail="Token is already used")
+        except TokenExpired as te:
+            print("TOKEN EXPIRED", te)
+            raise HTTPException(status_code=401,detail="The token has expired")
+        except TokenNotFound as tnf:
+            print("TOKEN NOT FOUND", tnf)
+            raise HTTPException(status_code=401,detail="Invalid token sent")
+  
+    return "successful"

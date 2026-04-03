@@ -31,3 +31,8 @@ class DeviceRegistrationInput(BaseModel):
     public_key : str
     signature : str
     device_name : str | None
+
+class DeviceAuthenticationInputSchema(BaseModel):
+    challenge_code : str
+    signature : str
+    device_id : int
