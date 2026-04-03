@@ -206,3 +206,58 @@ async def authenticate_device(device_input : DeviceAuthenticationInputSchema):
             raise HTTPException(status_code=401,detail="Invalid token sent")
   
     return "successful"
+
+@router.get("/complete-signin", response_model =str)
+async def complete_signin(request : Request):
+    """
+        Completes the sign in process by verifying the device has been authenticated and issues a JWT pair then redirects.
+    """
+    challenge_cookie = request.cookies.get("challenge_token")
+    print("CHALLENGE COOKIE", challenge_cookie)
+    async with SessionLocal() as session:
+        try:
+            token, user = await Token.validate_challenge(session,challenge_cookie)
+            if not token.verified:
+                raise HTTPException(status_code=401,detail="Invalid token sent - token is not verified")
+            #Issue JWT and set session and refresh tokens
+            jwt_token_pair = obtain_jwt_pair(user.id, user.user_name, user.terms_accepted)
+            response = RedirectResponse(
+                url= f"{os.environ.get('CLIENT_REDIRECT')}/home",
+                status_code=302
+            )
+            # Access token cookie
+            response.set_cookie(
+                key="access_token",
+                value=jwt_token_pair["access"],
+                httponly=True,
+                secure=True,          # HTTPS only
+                samesite="none",
+                max_age=ACCESS_TOKEN_LIFETIME,
+            )
+
+            # Refresh token cookie
+            response.set_cookie(
+                key="refresh_token",
+                value=jwt_token_pair["refresh"],
+                httponly=True,
+                secure=True,
+                samesite="none",
+                max_age=REFRESH_TOKEN_LIFETIME, 
+            )
+            # Mark the token as used 
+            try:
+                await token.mark_used(session)
+            except Exception as e:
+                raise HTTPException(status_code=422,detail="Unable to mark token as used")
+        except TokenUsed as tu:
+            print("TOKEN USED", tu)
+            raise HTTPException(status_code=401,detail="Token is already used")
+        except TokenExpired as te:
+            print("TOKEN EXPIRED", te)
+            raise HTTPException(status_code=401,detail="The token has expired")
+        except TokenNotFound as tnf:
+            print("TOKEN NOT FOUND", tnf)
+            raise HTTPException(status_code=401,detail="Invalid token sent")
+
+    return response
+

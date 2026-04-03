@@ -298,6 +298,13 @@ class Token(Base):
         await db.commit()
         await db.refresh(self)
         return self
+    
+    # @classmethod
+    # async def get_by_challenge_code(cls, db: AsyncSession, challenge_code: str):
+    #     """
+    #         Return the token based on the challenge code
+    #     """
+
 
     # @classmethod
     # async def get_valid_token(
