@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request, Depends, Response, Query, status
 from fastapi.responses import RedirectResponse
-from typing import List
+from typing import Optional
 from data.db import SessionLocal
 from pathlib import Path
 from data.models import User, Token, Device
@@ -8,13 +8,22 @@ from data.schemas import (
     UserInputSchema,
     DeviceRegistrationInput,
     DeviceAuthenticationInputSchema,
+    UserProfileSchema,
+    TokenSchema,
+    RefreshTokenSchema
 )
-import json
 import os
-import base64
 from services.auth_exceptions import TokenExpired, TokenNotFound, TokenUsed, DeviceAlreadyRegistered
 from services.auth import verify_signature
-from services.token import ACCESS_TOKEN_LIFETIME, REFRESH_TOKEN_LIFETIME,obtain_jwt_pair
+from services.token import (
+    RefreshTokenExpiredError, 
+    InvalidRefreshTokenError,
+    ACCESS_TOKEN_LIFETIME, 
+    REFRESH_TOKEN_LIFETIME,
+    obtain_jwt_pair,
+    refresh_jwt_pair,
+    validate_jwt
+) 
 from services.utils import check_active_device_exists
 
 
@@ -260,4 +269,125 @@ async def complete_signin(request : Request):
             raise HTTPException(status_code=401,detail="Invalid token sent")
 
     return response
+
+@router.get("/session", response_model=UserProfileSchema)
+async def get_session(token_data = Depends(validate_jwt)):
+    response = UserProfileSchema(
+        id=token_data["user_id"],
+        accepted_terms = token_data["accepted_terms"],
+        user_name=token_data["user_name"]
+    )
+    return response
+
+@router.post("/acceptterms", response_model=UserProfileSchema)
+async def accept_terms(response: Response, set_cookie : bool = Query(True), token_data = Depends(validate_jwt)):
+    """
+        Accepts the terms and conditions in the database and then updates the token
+    """
+    try:
+        await update_terms_accepted(token_data["user_id"])
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="Unable to update the terms and conditions.")
+    
+    #Issue a new JWT with the updated accepted terms
+    jwt_token_pair = obtain_jwt_pair(token_data["user_id"], token_data["idp"], token_data["alias"], True)
+    
+    # Set new cookies
+    if set_cookie:
+        response.set_cookie(
+            key="access_token",
+            value=jwt_token_pair["access"],
+            httponly=True,
+            secure=True,
+            samesite="none",
+            max_age=ACCESS_TOKEN_LIFETIME
+        )
+
+        response.set_cookie(
+            key="refresh_token",
+            value=jwt_token_pair["refresh"],
+            httponly=True,
+            secure=True,
+            samesite="none",
+            max_age=REFRESH_TOKEN_LIFETIME
+        )
+
+    return UserProfileSchema(
+        id=token_data["user_id"],
+        idp= token_data["idp"],
+        accepted_terms = True,
+        alias=token_data["alias"]
+    )
+
+
+@router.post("/logout")
+def logout(response: Response):
+    """
+        Logs out the user by clearing the Cookies
+    """
+    response.delete_cookie(
+        key="access_token",
+        path="/",
+        secure=True,
+        samesite="none",
+    )
+
+    response.delete_cookie(
+        key="refresh_token",
+        path="/",
+        secure=True,
+        samesite="none",
+    )
+    return {"status": "logged_out"}
+
+@router.post("/refresh")
+async def refresh_jwt(request: Request, response: Response, refresh: Optional[RefreshTokenSchema], set_cookie : bool = Query(True)):
+    """
+        Takes the refresh token and issues a new token pair and sets the session cookie
+    """
+
+    # Fallback to cookie (browser clients)
+    if not refresh.token:
+        refresh_token = request.cookies.get("refresh_token")
+    else:
+        refresh_token = refresh.token
+    try:
+        jwt_token_pair = refresh_jwt_pair(refresh_token)
+
+    except RefreshTokenExpiredError as e:
+        print("Refresh token expired", e)
+        raise HTTPException(status_code=401, detail="Refresh token expired")
+
+    except InvalidRefreshTokenError as e:
+        print("Refresh token invalid", e)
+        raise HTTPException(status_code=401, detail="Refresh token invalid")
+
+    # Set new cookies
+    if set_cookie:
+        response.set_cookie(
+            key="access_token",
+            value=jwt_token_pair["access"],
+            httponly=True,
+            secure=True,
+            samesite="none",
+            max_age=ACCESS_TOKEN_LIFETIME
+        )
+
+        response.set_cookie(
+            key="refresh_token",
+            value=jwt_token_pair["refresh"],
+            httponly=True,
+            secure=True,
+            samesite="none",
+            max_age=REFRESH_TOKEN_LIFETIME
+        )
+
+        return {"status": "refreshed"}
+    
+    token_pair = TokenSchema(
+        access_token = jwt_token_pair['access'],
+        refresh_token = jwt_token_pair['refresh'], 
+    )
+
+    return token_pair
 

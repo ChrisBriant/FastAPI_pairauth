@@ -36,3 +36,15 @@ class DeviceAuthenticationInputSchema(BaseModel):
     challenge_code : str
     signature : str
     device_id : int
+
+class UserProfileSchema(BaseModel):
+    id : int
+    user_name : str
+    accepted_terms : bool
+
+class TokenSchema(BaseModel):
+    access_token: str
+    refresh_token: str
+
+class RefreshTokenSchema(BaseModel):
+    token : str | None
