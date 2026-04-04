@@ -81,9 +81,6 @@ async def register_device(reg_input : DeviceRegistrationInput):
         except TokenNotFound as tnf:
             print("TOKEN NOT FOUND", tnf)
             raise HTTPException(status_code=401,detail="Invalid token sent")
-  
-        #FOR TESTING PURPOSES
-        #user = await User.get_by_id(session,8)
 
         #2. Verify signature
         if user:
@@ -108,34 +105,6 @@ async def register_device(reg_input : DeviceRegistrationInput):
                 print("An unknown error occurred")
                 raise HTTPException(status_code=400,detail="An unknown error occurred")
             
-            #DON@T DO BELOW HERE JUST RETURN SUCCESS
-            #Issue a jwt and set the cookies
-            #Issue a JWT
-            
-            # jwt_token_pair = obtain_jwt_pair(str(user.id),user.user_name, user.terms_accepted) 
-            # response = RedirectResponse(
-            #     url=os.environ.get("CLIENT_REDIRECT"),
-            #     status_code=302
-            # )
-            # # Access token cookie
-            # response.set_cookie(
-            #     key="access_token",
-            #     value=jwt_token_pair["access"],
-            #     httponly=True,
-            #     secure=True,          # HTTPS only
-            #     samesite="none",
-            #     max_age=ACCESS_TOKEN_LIFETIME,
-            # )
-
-            # # Refresh token cookie
-            # response.set_cookie(
-            #     key="refresh_token",
-            #     value=jwt_token_pair["refresh"],
-            #     httponly=True,
-            #     secure=True,
-            #     samesite="none",
-            #     max_age=REFRESH_TOKEN_LIFETIME, 
-            # )
             return device.id
 
 
@@ -193,16 +162,13 @@ async def authenticate_device(device_input : DeviceAuthenticationInputSchema):
         device = await Device.get_by_id(session,device_input.device_id)
         if not device:
             raise HTTPException(status_code=404,detail="Device not registered")
-        print("DEVICE FOUND", device)
         #2.Verify the signature against the device public key
         signature_verified = verify_signature(device.public_key,device_input.signature,device_input.challenge_code)
         if not signature_verified:
-            raise HTTPException(status_code=404,detail="Signature not valid")
-        print("DEVICE SIGNATURE VERIFIED", signature_verified)
+            raise HTTPException(status_code=401,detail="Signature not valid")
         #3. Get the token and user
         try:
             token, user = await Token.validate_challenge(session,device_input.challenge_code)
-            print("TOKEN",token)
             await token.mark_verified(session)
         except TokenUsed as tu:
             print("TOKEN USED", tu)
@@ -390,4 +356,20 @@ async def refresh_jwt(request: Request, response: Response, refresh: Optional[Re
     )
 
     return token_pair
+
+
+@router.get("/deviceredirect")
+def test_mobile_redirect(redirect_url : str | None = Query(True) ):
+    """
+        Test redirection to the scheme
+    """
+    if redirect_url:
+        response_url = redirect_url
+    else:
+        response_url = "uk.chrisbriant.pairauth://pair?token=abc123"     
+    response = RedirectResponse(
+        url=response_url,
+        status_code=302
+    )
+    return response
 

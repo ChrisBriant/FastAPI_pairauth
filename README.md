@@ -81,6 +81,15 @@ Stores short-lived tokens for QR login:
 
 uvicorn main:app --reload
 
+### Running the backend server
+
+## Generate a certificate for running over SSL
+.\openssl req -x509 -newkey rsa:4096 -keyout C:\python\pairauth\key.pem -out C:\python\pairauth\cert.pem -days 365 -nodes
+## Run Uvicorn as https
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload --ssl-keyfile=key.pem --ssl-certfile=cert.pem
+
+## Access from mobile device browser running on same Wi-Fi network
+https://192.168.1.42:8000
 
 ## Questions
 
