@@ -79,9 +79,22 @@ class User(Base):
     @classmethod
     async def create_user(cls, db: AsyncSession, username: str, password: str):
         # Ensure username is unique
-        existing = await db.execute(select(cls).where(cls.user_name == username))
-        if existing.scalar():
-            raise ValueError("Username already exists")
+        existing = await db.execute(
+            select(cls)
+            .options(
+                selectinload(cls.devices),
+            )
+            .where(cls.user_name == username))
+        try:
+            existing_user = existing.scalar_one()
+        except Exception:
+            #No existing user so set existing user to None
+            existing_user = None
+        if existing_user:
+            #raise ValueError("Username already exists")
+            #Return the existing user with exists flag
+            return existing_user, True
+
 
         # Hash the password
         hashed_pw = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
@@ -104,7 +117,7 @@ class User(Base):
             select(cls).where(cls.id == int(user.id))
         )
         inserted_user = result.scalar_one()
-        return inserted_user
+        return inserted_user, False
 
     def verify_password(self, password: str) -> bool:
         """

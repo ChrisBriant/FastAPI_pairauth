@@ -46,10 +46,22 @@ async def signup_user(user_input : UserInputSchema):
 
     async with SessionLocal() as session:
         try:
-            user = await User.create_user(session,user_input.user_name,user_input.password)
-        except ValueError as ve:
-            print("VALUE ERROR", ve)
-            raise HTTPException(status_code=409,detail="User already exists")
+            user, exists = await User.create_user(session,user_input.user_name,user_input.password)
+        except Exception as e:
+            print("ERROR", e)
+            raise HTTPException(status_code=400,detail="A database error occurred")
+        if exists:
+            #If the user exists allow reregistration if no devices exist
+            #Check registered devices
+            print("FOUND USER", user)
+            if len(user.devices) > 0:
+                raise HTTPException(status_code=409,detail="User already exists and has registered devices")
+            #Check password matches
+            password_matches = user.verify_password(user_input.password)
+            if not password_matches:
+                raise HTTPException(status_code=401,detail="Password verification failed")
+        
+
         print("CREATED USER", user)
         if not user:
             raise HTTPException(status_code=400,detail="User not created")
