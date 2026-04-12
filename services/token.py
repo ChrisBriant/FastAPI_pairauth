@@ -8,7 +8,7 @@ from typing import Optional
 
 # Settings for JWT
 ALGORITHM = "HS256"             # Use HS256 or any preferred algorithm
-ACCESS_TOKEN_LIFETIME = 60      # Token lifetime in seconds
+ACCESS_TOKEN_LIFETIME = 600      # Token lifetime in seconds
 REFRESH_TOKEN_LIFETIME = 120
 
 

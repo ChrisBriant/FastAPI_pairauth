@@ -11,7 +11,8 @@ from sqlalchemy import (
     func,
     Enum,
     select,
-    Boolean
+    Boolean,
+    update
 )
 from sqlalchemy.orm import relationship, selectinload
 #from .schemas import RoleResponseSchema, QuestionSchema
@@ -27,42 +28,9 @@ from services.auth_exceptions import TokenExpired, TokenNotFound, TokenUsed, Dev
 from services.auth import decode_public_key
 
 
-# class User(Base):
-#     __tablename__ = "users"
+class DatabaseUpdateError(Exception):
+    pass
 
-#     id = Column(Integer, primary_key=True, index=True)
-#     user_name = Column(String, nullable=False, unique=True)
-#     password_hash = Column(String, nullable=False)
-#     created_at = Column(DateTime(timezone=True), nullable=False)
-
-#     device = relationship("Device", backref="device")
-
-# class Device(Base):
-#     __tablename__ = "devices"
-
-#     id = Column(Integer, primary_key=True, index=True)
-#     user_id = Column(Integer, ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
-#     device_name = Column(String, nullable=True)
-#     public_key = Column(String, nullable=False)
-#     last_used = Column(DateTime(timezone=True), nullable=True)
-#     created_at = Column(DateTime(timezone=True), nullable=False)
-#     revoked = Column(Boolean, default=False)
-
-#     user = relationship("User", backref="user")
-
-# class Token(Base):
-#     __tablename__ = "tokens"
-
-#     id = Column(Integer, primary_key=True, index=True)
-#     user_id = Column(Integer, ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
-#     device_id = Column(Integer, ForeignKey("device.id", ondelete="CASCADE"), nullable=False)
-#     token  = Column(String, nullable=False)
-#     expires_at = Column(DateTime(timezone=True), nullable=False)
-#     used = Column(Boolean, default=False)
-#     created_at = Column(DateTime(timezone=True), nullable=False)
-
-#     user = relationship("User", backref="user")
-#     device = relationship("Device", backref="device")
 
 class User(Base):
     __tablename__ = "users"
@@ -158,6 +126,30 @@ class User(Base):
             .where(cls.user_name == user_name)
         )
         return result.scalar_one_or_none()
+    
+    @classmethod
+    async def update_terms_accepted(cls, db: AsyncSession, user_id: int) :
+        """
+            Update the users table to accept the terms and conditions
+        """
+        try:
+
+            update_stmt = update(cls).where(cls.id == int(user_id)).values(terms_accepted=True)
+            await db.execute(update_stmt)
+            await db.commit()
+            # Fetch updated user
+            result = await db.execute(
+                select(cls).where(cls.id == int(user_id))
+            )
+            user = result.scalar_one_or_none()
+
+            return user
+        except Exception as e:
+            # In a real application, you should log the error instead of just printing
+            print(f"Error in update_terms_accepted: {e}")
+            #Raise exception so that error propagates
+            raise DatabaseUpdateError()   
+
 
 class Device(Base):
     __tablename__ = "devices"

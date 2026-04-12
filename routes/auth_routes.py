@@ -146,12 +146,6 @@ async def signin_user(response: Response, user_input : UserInputSchema):
         print("PASSWORD IS VALID", password_valid)
         #3. Create a challenge for device authentication
         challenge = await Token.create_challenge(session,user.id,"signin",200)
-        #Create challenge cookie and redirect to challenge page on browser app
-        # response = RedirectResponse(
-        #     url=f"{os.environ.get("CLIENT_REDIRECT")}/challenge?type=signIn",
-        #     status_code=302
-        # )
-        # Access token cookie
         response.set_cookie(
             key="challenge_token",
             value=challenge.token,
@@ -177,6 +171,7 @@ async def authenticate_device(device_input : DeviceAuthenticationInputSchema):
         #2.Verify the signature against the device public key
         signature_verified = verify_signature(device.public_key,device_input.signature,device_input.challenge_code)
         if not signature_verified:
+            print("SIGNATURE NOT VALID")
             raise HTTPException(status_code=401,detail="Signature not valid")
         #3. Get the token and user
         try:
@@ -206,7 +201,7 @@ async def complete_signin(request : Request):
             token, user = await Token.validate_challenge(session,challenge_cookie)
             if not token.verified:
                 raise HTTPException(status_code=401,detail="Invalid token sent - token is not verified")
-            #Issue JWT and set session and refresh tokens
+            #Issue JWT and set session and refresh tokens 
             jwt_token_pair = obtain_jwt_pair(user.id, user.user_name, user.terms_accepted)
             response = RedirectResponse(
                 url= f"{os.environ.get('CLIENT_REDIRECT')}/home",
@@ -262,14 +257,16 @@ async def accept_terms(response: Response, set_cookie : bool = Query(True), toke
     """
         Accepts the terms and conditions in the database and then updates the token
     """
-    try:
-        await update_terms_accepted(token_data["user_id"])
-    except Exception as e:
-        raise HTTPException(status_code=400, detail="Unable to update the terms and conditions.")
-    
+    async with SessionLocal() as session:
+        try:
+            user = await User.update_terms_accepted(session, token_data["user_id"])
+        except Exception as e:
+            print("ERROR", e)
+            raise HTTPException(status_code=400, detail="Unable to update the terms and conditions.")
+        
     #Issue a new JWT with the updated accepted terms
-    jwt_token_pair = obtain_jwt_pair(token_data["user_id"], token_data["idp"], token_data["alias"], True)
-    
+    jwt_token_pair = obtain_jwt_pair(user.id, user.user_name, user.terms_accepted)
+
     # Set new cookies
     if set_cookie:
         response.set_cookie(
@@ -291,10 +288,9 @@ async def accept_terms(response: Response, set_cookie : bool = Query(True), toke
         )
 
     return UserProfileSchema(
-        id=token_data["user_id"],
-        idp= token_data["idp"],
+        id=user.id,
+        user_name= user.user_name,
         accepted_terms = True,
-        alias=token_data["alias"]
     )
 
 
