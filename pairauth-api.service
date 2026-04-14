@@ -1,0 +1,19 @@
+[Install]
+WantedBy=multi-user.target
+
+[Unit]
+Description=Pairauth backend
+After=network.target
+
+[Service]
+User=django-admin
+Group=www-data
+WorkingDirectory=/home/fastapi/FastAPI_pairauth
+ExecStart=/home/fastapi/environments/FastAPI_pairauth/bin/uvicorn main:app --uds /home/fastapi/FastAPI_pairauth/FastAPI_pairauth.sock --workers 4
+Restart=always
+RestartSec=3
+StandardOutput=append:/var/log/pairauth.log
+StandardError=append:/var/log/pairauth.log
+
+[Install]
+WantedBy=multi-user.target
