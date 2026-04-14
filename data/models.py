@@ -173,7 +173,6 @@ class Device(Base):
             select(cls).where(cls.user_id == user_id, cls.public_key == public_key)
         )
         device = result.scalar_one_or_none()
-        print("DO I GET HERE", device)
         return device is not None
 
     @classmethod
@@ -182,13 +181,10 @@ class Device(Base):
         Register a new device for the user.
         Raises ValueError if device is already registered.
         """
-        #decoded_public_key = decode_public_key(public_key)
 
         if await cls.is_registered(db, user_id, public_key):
             raise DeviceAlreadyRegistered("Device already registered")
         
-        
-
         device = cls(
             user_id=user_id,
             public_key=public_key,
@@ -304,36 +300,6 @@ class Token(Base):
         await db.refresh(self)
         return self
     
-    # @classmethod
-    # async def get_by_challenge_code(cls, db: AsyncSession, challenge_code: str):
-    #     """
-    #         Return the token based on the challenge code
-    #     """
-
-
-    # @classmethod
-    # async def get_valid_token(
-    #     cls,
-    #     db: AsyncSession,
-    #     token_value: str,
-    #     token_type: str
-    # ):
-    #     result = await db.execute(
-    #         select(cls).where(
-    #             cls.token == token_value,
-    #             cls.token_type == token_type,
-    #             cls.used == False,
-    #             cls.expires_at > datetime.now(timezone.utc)
-    #         )
-    #     )
-
-    #     token = result.scalar_one_or_none()
-
-    #     if not token:
-    #         raise ValueError("Invalid or expired token")
-
-    #     return token
-
 
 if __name__ == "__main__":
     pass

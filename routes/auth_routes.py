@@ -53,16 +53,12 @@ async def signup_user(user_input : UserInputSchema):
         if exists:
             #If the user exists allow reregistration if no devices exist
             #Check registered devices
-            print("FOUND USER", user)
             if len(user.devices) > 0:
                 raise HTTPException(status_code=409,detail="User already exists and has registered devices")
             #Check password matches
             password_matches = user.verify_password(user_input.password)
             if not password_matches:
                 raise HTTPException(status_code=401,detail="Password verification failed")
-        
-
-        print("CREATED USER", user)
         if not user:
             raise HTTPException(status_code=400,detail="User not created")
 
@@ -83,7 +79,6 @@ async def register_device(reg_input : DeviceRegistrationInput):
     async with SessionLocal() as session:
         try:
             token, user = await Token.validate_challenge(session,reg_input.challenge_code)
-            print("USER WITH CHALLENGE CODE",user)
         except TokenUsed as tu:
             print("TOKEN USED", tu)
             raise HTTPException(status_code=401,detail="Token is already used")
@@ -133,17 +128,13 @@ async def signin_user(response: Response, user_input : UserInputSchema):
         if not user:
             raise HTTPException(status_code=404,detail="User not found")
         #Check the devices is more than one which means they have registered
-        print("USER FOUND", list(user.devices))
         device_list = list(user.devices)
         if not (len(device_list) > 0 and check_active_device_exists(device_list)):
             raise HTTPException(status_code=404,detail="Could not find active device") 
         #2. Verify the user password
-        print(type(user))                   # should be <class 'User'>
-        print(user.password_hash)           # should be the actual hash string
         password_valid = user.verify_password(user_input.password)
         if not password_valid:
             raise HTTPException(status_code=401,detail="Password authentication failed")
-        print("PASSWORD IS VALID", password_valid)
         #3. Create a challenge for device authentication
         challenge = await Token.create_challenge(session,user.id,"signin",200)
         response.set_cookie(

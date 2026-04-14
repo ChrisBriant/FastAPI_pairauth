@@ -11,8 +11,6 @@ ALGORITHM = "HS256"             # Use HS256 or any preferred algorithm
 ACCESS_TOKEN_LIFETIME = 600      # Token lifetime in seconds
 REFRESH_TOKEN_LIFETIME = 120
 
-
-
 #Custom exceptions
 
 class RefreshTokenExpiredError(Exception):
