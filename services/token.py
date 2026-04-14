@@ -35,7 +35,6 @@ def obtain_jwt_pair(user_id, user_name, accepted_terms):
         "exp": datetime.now(timezone.utc) + timedelta(seconds=ACCESS_TOKEN_LIFETIME),
     }
     access_token = jwt.encode(access_payload, os.environ.get("SECRET_KEY"), algorithm=ALGORITHM)
-    print("ACCESS EXPIRES", access_payload["exp"])
 
     # 2. Generate Refresh Token (Long-lived)
     refresh_payload = {
@@ -46,7 +45,6 @@ def obtain_jwt_pair(user_id, user_name, accepted_terms):
         "exp": datetime.now(timezone.utc) + timedelta(seconds=REFRESH_TOKEN_LIFETIME),
     }
     refresh_token = jwt.encode(refresh_payload, os.environ.get("SECRET_KEY"), algorithm=ALGORITHM)
-    print("REFRESH EXPIRES", refresh_payload["exp"])
 
     return {
         "access": access_token,
@@ -54,15 +52,12 @@ def obtain_jwt_pair(user_id, user_name, accepted_terms):
     }
     
 def refresh_jwt_pair(refresh_token: str):
-    print("REFRESH TOKEN", refresh_token)
     try:
         payload = jwt.decode(
             refresh_token,
             os.environ.get("SECRET_KEY"),
             algorithms=[ALGORITHM]
         )
-
-        print("JWT PAYLOAD")
 
         # Ensure this is a refresh token
         if payload.get("type") != "refresh":
