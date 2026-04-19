@@ -186,7 +186,6 @@ async def complete_signin(request : Request):
         Completes the sign in process by verifying the device has been authenticated and issues a JWT pair then redirects.
     """
     challenge_cookie = request.cookies.get("challenge_token")
-    print("CHALLENGE COOKIE", challenge_cookie)
     async with SessionLocal() as session:
         try:
             token, user = await Token.validate_challenge(session,challenge_cookie)
