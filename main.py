@@ -14,7 +14,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # React app origin
+    allow_origins=["https://pairauth.chrisbriant.uk"],  # React app origin
     allow_credentials=True,                   # must be True for cookies
     allow_methods=["*"],
     allow_headers=["*"],
